@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fotos a PDF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="manifest" href="data:application/json,{%22name%22:%22Fotos%20a%20PDF%22,%22short_name%22:%22FotosPDF%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%23ffffff%22,%22theme_color%22:%22%234a90e2%22}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f5f5f5;
+    color: #333;
+  }
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 20px;
+    text-align: center;
+  }
+  .upload-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    background: #4a90e2;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.2s;
+  }
+  .upload-btn:hover { background: #3a7bc8; }
+  #fileInput { display: none; }
+
+  .settings {
+    background: #f9f9f9;
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 15px;
+    font-size: 14px;
+  }
+  .settings label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #555;
+  }
+  .settings select, .settings input[type=range] {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-top: 4px;
+  }
+  .settings input[type=range] {
+    padding: 0;
+  }
+  .quality-value {
+    float: right;
+    color: #4a90e2;
+    font-weight: 700;
+  }
+
+  .preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+    margin: 20px 0;
+  }
+  .preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+  }
+  .preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .remove-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary { background: #27ae60; color: white; }
+  .btn-secondary { background: #e74c3c; color: white; }
+  .btn-download { background: #8e44ad; color: white; }
+  .btn:hover:not(:disabled) { opacity: 0.85; }
+
+  .info {
+    text-align: center;
+    font-size: 14px;
+    color: #666;
+    margin-top: 10px;
+  }
+
+  .success-msg {
+    text-align: center;
+    padding: 12px;
+    background: #d4edda;
+    color: #155724;
+    border-radius: 8px;
+    margin-top: 15px;
+    font-size: 14px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📸 Fotos a PDF</h1>
+
+  <label for="fileInput" class="upload-btn">Seleccionar fotos de la galería</label>
+  <input type="file" id="fileInput" accept="image/*" multiple>
+
+  <div class="settings">
+    <label>Calidad del PDF
+      <select id="qualitySelect">
+        <option value="800,0.6">Baja (PDF muy ligero)</option>
+        <option value="1200,0.7">Media (recomendada)</option>
+        <option value="1600,0.75" selected>Alta</option>
+        <option value="2000,0.85">Muy alta</option>
+      </select>
+    </label>
+    <label>Calidad JPEG: <span class="quality-value" id="jpegValue">0.75</span>
+      <input type="range" id="jpegSlider" min="0.3" max="0.95" step="0.05" value="0.75">
+    </label>
+  </div>
+
+  <div class="preview" id="preview"></div>
+  <div class="info" id="info">0 fotos seleccionadas</div>
+
+  <div class="actions">
+    <button class="btn btn-secondary" id="clearBtn" disabled>Limpiar</button>
+    <button class="btn btn-primary" id="pdfBtn" disabled>Generar PDF</button>
+  </div>
+
+  <div class="actions" id="downloadActions" style="display:none;">
+    <button class="btn btn-download" id="downloadBtn">💾 Guardar PDF</button>
+  </div>
+
+  <div class="success-msg" id="successMsg">
+    ✅ PDF listo. Presiona "Guardar PDF" para abrirlo y guardarlo.
+  </div>
+</div>
+
+<script>
+  const { jsPDF } = window.jspdf;
+
+  const fileInput = document.getElementById('fileInput');
+  const preview = document.getElementById('preview');
+  const info = document.getElementById('info');
+  const clearBtn = document.getElementById('clearBtn');
+  const pdfBtn = document.getElementById('pdfBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const downloadActions = document.getElementById('downloadActions');
+  const successMsg = document.getElementById('successMsg');
+  const qualitySelect = document.getElementById('qualitySelect');
+  const jpegSlider = document.getElementById('jpegSlider');
+  const jpegValue = document.getElementById('jpegValue');
+
+  let images = []; // { dataUrl (comprimida) }
+  let generatedPdf = null;
+
+  // Cuando cambia el select, ajustamos el slider
+  qualitySelect.addEventListener('change', () => {
+    const [, q] = qualitySelect.value.split(',');
+    jpegSlider.value = q;
+    jpegValue.textContent = parseFloat(q).toFixed(2);
+  });
+
+  jpegSlider.addEventListener('input', () => {
+    jpegValue.textContent = parseFloat(jpegSlider.value).toFixed(2);
+  });
+
+  fileInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    const { maxSize, quality } = getSettings();
+
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      const dataUrl = await compressImage(file, maxSize, quality);
+      images.push({ dataUrl });
+    }
+    resetPdf();
+    renderPreview();
+    fileInput.value = '';
+  });
+
+  function getSettings() {
+    const maxSize = parseInt(qualitySelect.value.split(',')[0]);
+    const quality = parseFloat(jpegSlider.value);
+    return { maxSize, quality };
+  }
+
+  // Comprime una imagen: la redimensiona y la convierte a JPEG
+  function compressImage(file, maxSize, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+
+          // Redimensionar manteniendo proporción
+          if (width > maxSize || height > maxSize) {
+            if (width >= height) {
+              height = Math.round((height * maxSize) / width);
+              width = maxSize;
+            } else {
+              width = Math.round((width * maxSize) / height);
+              height = maxSize;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Exportar como JPEG comprimido
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed);
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function resetPdf() {
+    generatedPdf = null;
+    downloadActions.style.display = 'none';
+    successMsg.style.display = 'none';
+  }
+
+  function renderPreview() {
+    preview.innerHTML = '';
+    images.forEach((img, index) => {
+      const div = document.createElement('div');
+      div.className = 'preview-item';
+      div.innerHTML = `
+        <img src="${img.dataUrl}" alt="foto ${index + 1}">
+        <button class="remove-btn" data-index="${index}">×</button>
+      `;
+      preview.appendChild(div);
+    });
+
+    info.textContent = `${images.length} foto${images.length !== 1 ? 's' : ''} seleccionada${images.length !== 1 ? 's' : ''}`;
+    clearBtn.disabled = images.length === 0;
+    pdfBtn.disabled = images.length === 0;
+
+    preview.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        images.splice(idx, 1);
+        resetPdf();
+        renderPreview();
+      });
+    });
+  }
+
+  clearBtn.addEventListener('click', () => {
+    images = [];
+    resetPdf();
+    renderPreview();
+  });
+
+  pdfBtn.addEventListener('click', async () => {
+    if (images.length === 0) return;
+
+    pdfBtn.disabled = true;
+    pdfBtn.textContent = 'Generando...';
+
+    try {
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+
+      for (let i = 0; i < images.length; i++) {
+        if (i > 0) pdf.addPage();
+
+        const img = await loadImage(images[i].dataUrl);
+        const imgRatio = img.width / img.height;
+        const maxW = pageWidth - margin * 2;
+        const maxH = pageHeight - margin * 2;
+
+        let w = maxW;
+        let h = w / imgRatio;
+        if (h > maxH) {
+          h = maxH;
+          w = h * imgRatio;
+        }
+
+        const x = (pageWidth - w) / 2;
+        const y = (pageHeight - h) / 2;
+
+        // Ya están comprimidas en JPEG
+        pdf.addImage(images[i].dataUrl, 'JPEG', x, y, w, h, undefined, 'FAST');
+      }
+
+      generatedPdf = pdf;
+      downloadActions.style.display = 'flex';
+      successMsg.style.display = 'block';
+
+      // Mostrar tamaño aproximado del PDF
+      const pdfSize = pdf.output('blob').size;
+      const sizeMB = (pdfSize / 1024 / 1024).toFixed(2);
+      successMsg.textContent = `✅ PDF listo (${sizeMB} MB). Presiona "Guardar PDF" para abrirlo y guardarlo.`;
+
+    } catch (err) {
+      console.error(err);
+      alert('Error al generar el PDF: ' + err.message);
+    } finally {
+      pdfBtn.disabled = false;
+      pdfBtn.textContent = 'Generar PDF';
+    }
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    if (!generatedPdf) return;
+
+    // Usamos Blob + window.open para que funcione bien en iPad/Safari
+    const pdfBlob = generatedPdf.output('blob');
+    const blobUrl = URL.createObjectURL(pdfBlob);
+
+    // Intentar abrir en nueva pestaña (iPad: Safari mostrará el visor)
+    const newWindow = window.open(blobUrl, '_blank');
+
+    // Fallback: si el popup fue bloqueado, descargamos
+    if (!newWindow) {
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'fotos.pdf';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  });
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+</script>
+</body>
+</html>
